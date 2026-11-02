@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0A0F1A" />
+  <meta name="description" content="WordForge — futuristic 5x5 word discovery game. Drag to connect letters, find the day's 12 targets, forge long words." />
+  <title>WordForge — Daily Word Discovery</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<!-- Background starfield -->
+<canvas id="starfield" aria-hidden="true"></canvas>
+
+<div id="app">
+
+  <!-- ── Header ── -->
+  <header class="header" role="banner">
+    <div class="logo" aria-label="WordForge Daily">WORDFORGE</div>
+    <nav class="header-actions" aria-label="Game controls">
+      <button class="icon-btn" id="btn-sound" title="Sound on/off (M between rounds)" aria-label="Sound on">🔊</button>
+      <button class="icon-btn" id="btn-theme" title="Toggle dark mode" aria-label="Toggle dark mode">🌙</button>
+      <button class="icon-btn" id="btn-colorblind" title="Colorblind mode" aria-label="Toggle colorblind mode">👁</button>
+      <button class="icon-btn" id="btn-leaderboard" title="Leaderboard" aria-label="View leaderboard">🏆</button>
+      <button class="icon-btn" id="btn-stats" title="My Stats" aria-label="View stats">📊</button>
+      <button class="icon-btn" id="btn-help" title="How to play" aria-label="How to play">?</button>
+    </nav>
+  </header>
+
+  <!-- ── Main game layout ── -->
+  <main class="main" id="game-main" role="main">
+
+    <!-- Left panel: Timer + Score + Progress -->
+    <aside class="panel-left" aria-label="Game stats">
+
+      <div class="timer-wrap" role="timer" aria-live="polite" aria-label="Time remaining">
+        <div class="timer-ring-wrap">
+          <svg viewBox="0 0 80 80" aria-hidden="true">
+            <circle class="timer-ring-bg" cx="40" cy="40" r="33" />
+            <circle class="timer-ring-fill" id="timer-ring" cx="40" cy="40" r="33"
+              stroke-dasharray="207.3"
+              stroke-dashoffset="0" />
+          </svg>
+          <div class="timer-num" id="timer-num">90</div>
+        </div>
+        <div class="timer-label">SECONDS</div>
+      </div>
+
+      <div class="score-display">
+        <div class="sd-label">SCORE</div>
+        <div class="sd-val" id="score-val">0</div>
+        <div class="sd-sub" id="score-sub">Find words to score</div>
+      </div>
+
+      <div class="words-progress">
+        <div class="wp-label">TARGETS FOUND</div>
+        <div class="wp-bar-bg"><div class="wp-bar-fill" id="progress-bar"></div></div>
+        <div class="wp-counts">
+          <span id="found-count">0</span>
+          <span>/ <span id="total-count">—</span></span>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- Center: Grid + Input -->
+    <section class="game-col" aria-label="Game grid">
+
+      <!-- Current word display -->
+      <div class="current-word-bar" id="current-word-bar" aria-live="polite" aria-label="Current word being formed">
+        <div class="cw-text" id="current-word-text">— TAP TO START —</div>
+        <div class="cw-hint" id="cw-hint">DRAG OR TYPE</div>
+      </div>
+
+      <!-- 5×5 grid canvases -->
+      <div class="grid-wrap" id="grid-wrap">
+        <canvas id="grid-canvas" role="img" aria-label="5x5 letter grid"></canvas>
+        <canvas id="overlay-canvas" aria-hidden="true"></canvas>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="action-row">
+        <button class="btn btn-clear" id="btn-clear" title="Clear (Escape)" aria-label="Clear current word">✕</button>
+        <button class="btn btn-submit" id="btn-submit" aria-label="Submit word (Enter)">SUBMIT WORD</button>
+      </div>
+
+      <!-- Keyboard hint -->
+      <p style="font-size:10px;color:var(--text3);letter-spacing:1px;text-align:center;margin-top:-4px;">
+        DRAG GRID · TYPE LETTERS · ENTER TO SUBMIT
+      </p>
+
+    </section>
+
+    <!-- Right panel: Word list + Achievements -->
+    <aside class="panel-right" aria-label="Found words and achievements">
+
+      <div class="word-list-panel">
+        <div class="wlp-label">TARGETS</div>
+        <div id="target-slots" aria-label="Target words, grouped by length"></div>
+        <div class="wlp-label" style="margin-top:12px;">BONUS WORDS</div>
+        <div id="word-list" role="list" aria-label="Bonus words"></div>
+        <div id="word-list-empty" style="font-size:12px;color:var(--text3);text-align:center;padding:8px 0;">
+          Other real words score here too.
+        </div>
+      </div>
+
+      <div class="achievements">
+        <div class="ach-label">ACHIEVEMENTS</div>
+        <div class="ach-grid" id="ach-grid" aria-label="Achievement badges"></div>
+      </div>
+
+    </aside>
+
+  </main>
+
+</div><!-- #app -->
+
+<!-- ── Toast ── -->
+<div id="toast" role="alert" aria-live="assertive"></div>
+
+<!-- ═════════════════════════════
+     START SCREEN
+     ═════════════════════════════ -->
+<div id="start-screen" aria-modal="true" role="dialog" aria-label="WordForge start screen">
+  <div class="ss-logo" aria-label="WordForge">WORDFORGE</div>
+  <div class="ss-tagline">DAILY WORD DISCOVERY · 90 SECONDS</div>
+  <ol class="ss-howto" aria-label="How to play">
+    <li>Drag across touching letters, or type, to make words of 3 or more letters.</li>
+    <li>Find the day's 12 targets. The boxes show how many of each length.</li>
+    <li>Your first round of the day counts. After that it's practice.</li>
+  </ol>
+  <div class="ss-features">
+    <div class="ss-feat"><div class="ss-feat-icon">🔗</div><div class="ss-feat-text">DRAG TO CONNECT</div></div>
+    <div class="ss-feat"><div class="ss-feat-icon">🎯</div><div class="ss-feat-text">12 TARGETS A DAY</div></div>
+    <div class="ss-feat"><div class="ss-feat-icon">💎</div><div class="ss-feat-text">LONG WORD BONUS</div></div>
+    <div class="ss-feat"><div class="ss-feat-icon">📅</div><div class="ss-feat-text">DAILY STREAKS</div></div>
+  </div>
+  <div class="ss-today" id="ss-today" aria-live="polite"></div>
+  <button class="btn btn-start" id="btn-start" aria-label="Start today's puzzle">▶ PLAY TODAY'S PUZZLE</button>
+  <p style="margin-top:16px;font-size:10px;color:var(--text3);letter-spacing:2px;">
+    NEW PUZZLE EVERY DAY AT MIDNIGHT UTC
+  </p>
+</div>
+
+<!-- ═════════════════════════════
+     RESULT MODAL
+     ═════════════════════════════ -->
+<div class="modal-backdrop" id="result-modal" role="dialog" aria-modal="true" aria-label="Game results">
+  <div class="modal">
+    <div class="modal-title" id="result-title">ROUND COMPLETE</div>
+    <div class="result-grade" id="result-grade" aria-label="Grade">—</div>
+    <div class="result-score" id="result-score">0</div>
+    <div class="result-sub" id="result-sub">pts</div>
+    <div class="result-stats">
+      <div class="rs-item"><div class="rs-val" id="rs-found">0</div><div class="rs-lbl">TARGETS FOUND</div></div>
+      <div class="rs-item"><div class="rs-val" id="rs-pct">0%</div><div class="rs-lbl">COMPLETION</div></div>
+      <div class="rs-item"><div class="rs-val" id="rs-bonus">+0</div><div class="rs-lbl">TIME BONUS</div></div>
+      <div class="rs-item"><div class="rs-val" id="rs-best">—</div><div class="rs-lbl">BEST WORD</div></div>
+    </div>
+    <div id="result-words" class="result-words" aria-label="Words found"></div>
+    <div id="result-missed" class="result-missed" aria-label="Targets you missed"></div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-submit" id="btn-retry" style="flex:1">PRACTICE</button>
+      <button class="btn" id="btn-share" style="flex:1">SHARE 📤</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════════════════════
+     LEADERBOARD MODAL
+     ═════════════════════════════ -->
+<div class="modal-backdrop" id="lb-modal" role="dialog" aria-modal="true" aria-label="Daily leaderboard">
+  <div class="modal">
+    <button class="modal-close" id="lb-close" aria-label="Close">✕</button>
+    <div class="modal-title">DAILY LEADERBOARD</div>
+    <div id="lb-list" role="list" aria-label="Leaderboard rankings"></div>
+    <p style="font-size:10px;color:var(--text3);text-align:center;margin-top:12px;letter-spacing:1px;">
+      SCORES STAY ON THIS DEVICE
+    </p>
+  </div>
+</div>
+
+<!-- ═════════════════════════════
+     STATS MODAL
+     ═════════════════════════════ -->
+<div class="modal-backdrop" id="stats-modal" role="dialog" aria-modal="true" aria-label="Personal stats">
+  <div class="modal">
+    <button class="modal-close" id="stats-close" aria-label="Close">✕</button>
+    <div class="modal-title">MY STATS</div>
+    <div class="result-stats">
+      <div class="rs-item"><div class="rs-val" id="stat-played">0</div><div class="rs-lbl">PLAYED</div></div>
+      <div class="rs-item"><div class="rs-val" id="stat-streak">0</div><div class="rs-lbl">STREAK 🔥</div></div>
+      <div class="rs-item"><div class="rs-val" id="stat-best-score">0</div><div class="rs-lbl">BEST SCORE</div></div>
+      <div class="rs-item"><div class="rs-val" id="stat-avg">0%</div><div class="rs-lbl">AVG COMPLETE</div></div>
+    </div>
+    <div style="text-align:center;margin-top:12px;">
+      <div class="sd-label" style="margin-bottom:6px;">GRADE HISTORY</div>
+      <div id="grade-history" style="font-family:var(--font-display);font-size:18px;letter-spacing:4px;color:var(--text2);">—</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════════════════════
+     HELP MODAL
+     ═════════════════════════════ -->
+<div class="modal-backdrop" id="help-modal" role="dialog" aria-modal="true" aria-label="How to play">
+  <div class="modal">
+    <button class="modal-close" id="help-close" aria-label="Close">✕</button>
+    <div class="modal-title">HOW TO PLAY</div>
+    <div style="display:flex;flex-direction:column;gap:12px;font-size:13px;color:var(--text2);line-height:1.6;">
+      <div><strong style="color:var(--cyan);">1</strong> — Drag across touching letters, or type, to make words of 3 or more letters.</div>
+      <div><strong style="color:var(--cyan);">2</strong> — Find the day's 12 targets. The boxes show how many of each length.</div>
+      <div><strong style="color:var(--cyan);">3</strong> — Your first round of the day counts. After that it's practice.</div>
+      <div><strong style="color:var(--gold);">💎 SCORING</strong> — Every real word scores 10 a letter: ×2 at 5–6 letters, ×5 at 7+. Find all 12 targets and each second left adds 20.</div>
+      <div><strong style="color:var(--green);">🎯 GRADES</strong> — A 11–12 targets, B 9–10, C 6–8, D 3–5, F under 3.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Scripts ── -->
+<script src="js/words.js"></script>
+<script src="js/puzzle.js"></script>
+<script src="js/renderer.js"></script>
+<script src="js/game.js"></script>
+<script src="js/main.js"></script>
+
+</body>
+</html>
