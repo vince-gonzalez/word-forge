@@ -19,6 +19,7 @@
   <header class="header" role="banner">
     <div class="logo" aria-label="WordForge Daily">WORDFORGE</div>
     <nav class="header-actions" aria-label="Game controls">
+      <button class="icon-btn" id="btn-home" title="Menu" aria-label="Back to the menu">⌂</button>
       <button class="icon-btn" id="btn-sound" title="Sound on/off (M between rounds)" aria-label="Sound on">🔊</button>
       <button class="icon-btn" id="btn-theme" title="Toggle dark mode" aria-label="Toggle dark mode">🌙</button>
       <button class="icon-btn" id="btn-colorblind" title="Colorblind mode" aria-label="Toggle colorblind mode">👁</button>
@@ -138,6 +139,11 @@
   </div>
   <div class="ss-today" id="ss-today" aria-live="polite"></div>
   <button class="btn btn-start" id="btn-start" aria-label="Start today's puzzle">▶ PLAY TODAY'S PUZZLE</button>
+  <div class="ss-modes">
+    <button class="btn btn-mode" id="btn-endless" aria-label="Play endless puzzles">∞ ENDLESS</button>
+    <button class="btn btn-mode" id="btn-live" aria-label="Join the live round">◉ LIVE ROUND</button>
+  </div>
+  <p class="ss-modes-note">Endless: numbered puzzles, as many as you like. Live: a new board for everyone every 2 minutes.</p>
   <p style="margin-top:16px;font-size:10px;color:var(--text3);letter-spacing:2px;">
     NEW PUZZLE EVERY DAY AT MIDNIGHT UTC
   </p>

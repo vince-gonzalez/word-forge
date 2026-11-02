@@ -51,9 +51,9 @@ class WordForgeGame {
   }
 
   // ── Game flow ──
-  start() {
+  start(duration = GAME_DURATION) {
     this.phase = 'playing';
-    this.timeLeft = GAME_DURATION;
+    this.timeLeft = duration;
     this.score = 0;
     this.wordsFound = new Set();
     this.wordsFoundData = [];

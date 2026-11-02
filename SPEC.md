@@ -41,6 +41,11 @@ BCP 14 (RFC 2119, RFC 8174) when, and only when, they appear in all capitals, as
 4.2 Replays of the same day's board MAY be played, and MUST be marked "practice" on screen.
 4.3 A practice round MUST NOT change the best score, the streak, or the share result.
 4.4 Opening the game after the day's round MUST show that day's result and the time until the next board.
+4.5 Endless puzzles MUST be numbered 1 to 999,999, each its own fixed board, and openable by link.
+4.6 Live rounds MUST start every 2 minutes on the site's clock (90 seconds of play, 30 of results), give every
+    player the same board, and let a player join a round with 10 or more seconds left.
+4.7 Endless and live rounds MUST NOT change the daily score, streak, achievements or share result, and their
+    boards MUST come from seeds no daily board uses.
 
 ## 5. Feedback and sound
 

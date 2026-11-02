@@ -8,6 +8,7 @@
 // ── State ──
 const UIState = {
   gameActive: false,
+  mode: 'daily',
   practice: false,
   darkMode: false,
   colorblind: false,
@@ -78,6 +79,64 @@ const Sound = {
     showToast(this.muted ? 'Sound off' : 'Sound on', 'info');
   },
 };
+
+// ── Modes: the daily board, numbered endless boards, and live rounds on a shared clock ──
+// Each mode draws seeds from its own range, so an endless or live board never repeats a daily one.
+const ENDLESS_BASE = 100000000;   // endless #N   -> seed 100,000,000 + N
+const LIVE_BASE = 3000000000;     // live round R -> seed 3,000,000,000 + R
+const LIVE_ROUND_MS = 120000;     // a new live board every 2 minutes:
+const LIVE_PLAY_MS = 90000;       // 90 seconds to play, 30 for results
+let clockOffset = 0;              // the site's clock minus this device's clock
+let liveWait = null, liveTick = null;
+const nowSynced = () => Date.now() + clockOffset;
+
+// Everyone in a live round has to agree on the time, so I take it from the site, not the device
+function syncClock() {
+  fetch(location.href, { method: 'HEAD', cache: 'no-store' })
+    .then(r => { const t = Date.parse(r.headers.get('Date')); if (!isNaN(t)) clockOffset = t - Date.now(); })
+    .catch(() => {});
+}
+function nextEndless() {
+  // A shared link (#endless-123) opens that puzzle once
+  const fromLink = /^#endless-(\d{1,6})$/.exec(location.hash);
+  if (fromLink && +fromLink[1] >= 1) {
+    history.replaceState(null, '', location.pathname);
+    return +fromLink[1];
+  }
+  let n = 0;
+  try { n = parseInt(localStorage.getItem('wf_endless') || '0', 10); } catch {}
+  return n >= 1 && n <= 999999 ? n : 1 + Math.floor(Math.random() * 999999);
+}
+function stopLiveTimers() {
+  clearTimeout(liveWait);
+  clearInterval(liveTick);
+}
+// Join the live round if there's time left in it; otherwise wait for the next board
+function playLive() {
+  stopLiveTimers();
+  const now = nowSynced();
+  const round = Math.floor(now / LIVE_ROUND_MS);
+  const left = round * LIVE_ROUND_MS + LIVE_PLAY_MS - now;
+  if (left >= 10000) {
+    startGame('live', { round, duration: Math.floor(left / 1000) });
+    return;
+  }
+  const startAt = (round + 1) * LIVE_ROUND_MS;
+  hideStartScreen();
+  UIState.mode = 'live';
+  game.phase = 'idle';
+  renderer.grid = [];
+  $('target-slots').innerHTML = '';
+  clearWordList();
+  const show = () => {
+    const s = Math.max(0, Math.ceil((startAt - nowSynced()) / 1000));
+    $('current-word-text').textContent = `NEXT LIVE BOARD IN ${s}s`;
+    $('cw-hint').textContent = 'EVERYONE GETS THE SAME ONE';
+  };
+  show();
+  liveTick = setInterval(show, 500);
+  liveWait = setTimeout(playLive, startAt - now + 50);
+}
 
 // ── One scored round a day; replays of the same board are practice ──
 // The key is the board's own date (UTC), so one board never counts twice.
@@ -165,7 +224,7 @@ function initGame() {
     if (target) fillSlot(word);
     else addWordToList(word, pts, rarity);
     updateProgress();
-    if (!UIState.practice) checkAchievements(null, null, word, pts, rarity);
+    if (UIState.mode === 'daily' && !UIState.practice) checkAchievements(null, null, word, pts, rarity);
     animateScore(pts);
   };
 
@@ -441,20 +500,36 @@ function bindClose(backdropId, closeBtnId) {
 
 // ── Result modal ──
 function showResultModal(result) {
-  // Only the day's first finished round counts; a practice round changes nothing kept
-  if (!UIState.practice) {
+  // Found and total targets per word length, for the share text
+  const rows = [...new Set(game.puzzle.targetWords.map(t => t.word.length))].sort((a, b) => a - b)
+    .map(len => {
+      const of = game.puzzle.targetWords.filter(t => t.word.length === len);
+      return [len, of.filter(t => game.wordsFound.has(t.word)).length, of.length];
+    });
+  // Only the day's first finished daily round counts; practice, endless and live keep nothing
+  if (UIState.mode === 'daily' && !UIState.practice) {
     const date = boardDate();
     const stats = updateStats(result, date);
     checkAchievements(result, stats, null, null, null);
-    const rows = [...new Set(game.puzzle.targetWords.map(t => t.word.length))].sort((a, b) => a - b)
-      .map(len => {
-        const of = game.puzzle.targetWords.filter(t => t.word.length === len);
-        return [len, of.filter(t => game.wordsFound.has(t.word)).length, of.length];
-      });
     saveDay({ date, score: result.score, grade: result.grade, rows });
     submitScore(result);
   }
-  $('result-title').textContent = UIState.practice ? 'PRACTICE ROUND · NOT SCORED' : 'ROUND COMPLETE';
+  UIState.last = { grade: result.grade, score: result.score, rows };
+  $('result-title').textContent = UIState.mode === 'endless' ? `ENDLESS #${UIState.endless}`
+    : UIState.mode === 'live' ? 'LIVE ROUND OVER'
+    : UIState.practice ? 'PRACTICE ROUND · NOT SCORED' : 'ROUND COMPLETE';
+  $('btn-retry').textContent = UIState.mode === 'endless' ? 'NEXT PUZZLE' : 'PRACTICE';
+  if (UIState.mode === 'live') {
+    // Count down to the next live board and move straight into it
+    const startAt = (UIState.liveRound + 1) * LIVE_ROUND_MS;
+    const tick = () => {
+      const s = Math.max(0, Math.ceil((startAt - nowSynced()) / 1000));
+      $('btn-retry').textContent = `NEXT BOARD IN ${s}s`;
+    };
+    tick();
+    liveTick = setInterval(tick, 500);
+    liveWait = setTimeout(() => { closeModal(resultModal); playLive(); }, startAt - nowSynced() + 50);
+  }
 
   // Fill modal
   $('result-grade').textContent = result.grade;
@@ -564,12 +639,18 @@ function showStats() {
 
 // ── Share ──
 function shareResult() {
-  // Always the day's scored round, never a practice one, and never the words themselves
-  const d = scoredToday();
+  // The daily shares its scored round, never a practice one; endless and live share the round just played.
+  // Never the words themselves.
+  const daily = UIState.mode !== 'endless' && UIState.mode !== 'live';
+  const d = daily ? scoredToday() : UIState.last;
   if (!d) return;
-  const day = new Date(d.date + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+  const site = location.origin + location.pathname;
+  let head = 'Word Forge · ', link = site;
+  if (daily) head += new Date(d.date + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+  else if (UIState.mode === 'endless') { head += `Endless #${UIState.endless}`; link = `${site}#endless-${UIState.endless}`; }
+  else head += 'Live';
   const rows = d.rows.map(([len, got, of]) => `${len} ${'■'.repeat(got)}${'□'.repeat(of - got)}`);
-  const text = [`Word Forge · ${day} · ${d.grade}`, ...rows, `${d.score} · ${location.origin + location.pathname}`].join('\n');
+  const text = [`${head} · ${d.grade}`, ...rows, `${d.score} · ${link}`].join('\n');
 
   if (navigator.share) {
     navigator.share({ title: 'WordForge', text }).catch(() => copyToClipboard(text));
@@ -662,9 +743,20 @@ function initTheme() {
 }
 
 // ── Game start flow ──
-function startGame() {
-  // Load puzzle
-  const seed = WordForgePuzzle.getDailySeed();
+function startGame(mode = 'daily', opts = {}) {
+  stopLiveTimers();
+  UIState.mode = mode;
+  let seed = WordForgePuzzle.getDailySeed();
+  let duration = GAME_DURATION;
+  if (mode === 'endless') {
+    UIState.endless = opts.n;
+    seed = ENDLESS_BASE + opts.n;
+    try { localStorage.setItem('wf_endless', String(opts.n + 1)); } catch {}
+  } else if (mode === 'live') {
+    UIState.liveRound = opts.round;
+    seed = LIVE_BASE + opts.round;
+    duration = opts.duration;
+  }
   const puzzle = game.loadPuzzle(seed);
 
   // Update UI
@@ -673,36 +765,55 @@ function startGame() {
   $('progress-bar').style.width = '0%';
   $('score-val').textContent = '0';
   if (document.activeElement) document.activeElement.blur();
-  UIState.practice = !!scoredToday();
-  $('score-sub').textContent = UIState.practice
-    ? 'practice · today is already scored'
+  UIState.practice = mode === 'daily' && !!scoredToday();
+  $('score-sub').textContent = mode === 'live' ? 'same board for everyone playing now'
+    : mode === 'endless' ? puzzle.targetWords.length + ' targets · not scored'
+    : UIState.practice ? 'practice · today is already scored'
     : puzzle.targetWords.length + ' targets to find';
-  document.querySelector('.score-display .sd-label').textContent = UIState.practice ? 'PRACTICE' : 'SCORE';
-  document.querySelector('.score-display .sd-label').classList.toggle('practice', UIState.practice);
+  const label = document.querySelector('.score-display .sd-label');
+  label.textContent = mode === 'live' ? 'LIVE ROUND' : mode === 'endless' ? `ENDLESS #${opts.n}`
+    : UIState.practice ? 'PRACTICE' : 'SCORE';
+  label.classList.toggle('practice', mode !== 'daily' || UIState.practice);
   clearWordList();
   buildTargetSlots(puzzle);
-  updateTimer(GAME_DURATION);
+  updateTimer(duration);
 
   // Reset current word display
   updateCurrentWord('');
   $('current-word-text').textContent = '';
   $('cw-hint').textContent = 'DRAG OR TYPE';
 
-  // Hide start screen
+  hideStartScreen();
+  UIState.gameActive = true;
+  game.start(duration);
+}
+
+function hideStartScreen() {
   startScreen.style.opacity = '0';
   startScreen.style.pointerEvents = 'none';
   setTimeout(() => startScreen.style.display = 'none', 300);
-
-  UIState.gameActive = true;
-
-  // Start game
-  game.start();
 }
 
+// Back to the menu. Leaving a scored daily round ends it (and shows its result), so nobody can peek and restart.
+function showStartScreen() {
+  if (game.phase === 'playing' && UIState.mode === 'daily' && !UIState.practice) { game.endGame(); return; }
+  stopLiveTimers();
+  clearInterval(game.timerInterval);
+  game.phase = 'idle';
+  closeModal(resultModal);
+  renderStartScreen();
+  startScreen.style.display = '';
+  startScreen.style.opacity = '1';
+  startScreen.style.pointerEvents = '';
+}
+
+// The result screen's main button: practice the daily, the next endless puzzle, or the next live board
 function retryGame() {
   closeModal(resultModal);
   clearWordList();
-  startGame();
+  if (UIState.mode === 'endless') startGame('endless', { n: UIState.endless >= 999999 ? 1 : UIState.endless + 1 });
+  else if (UIState.mode === 'live') playLive();
+  else startGame('daily');
 }
 
 // ── Boot ──
@@ -714,12 +825,16 @@ document.addEventListener('DOMContentLoaded', () => {
   buildAchievementGrid();
   renderStartScreen();
   setInterval(renderStartScreen, 30000);
+  syncClock();
 
   // Button bindings
   $('btn-start').addEventListener('click', () => {
-    startGame();
+    startGame('daily');
     addRipple($('btn-start'));
   });
+  $('btn-endless').addEventListener('click', () => startGame('endless', { n: nextEndless() }));
+  $('btn-live').addEventListener('click', playLive);
+  $('btn-home').addEventListener('click', showStartScreen);
 
   $('btn-submit').addEventListener('click', () => {
     if (game && game.phase === 'playing') game.submitCurrentWord();

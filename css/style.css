@@ -425,6 +425,10 @@ body {
 .wfi-word.bonus { color: var(--text2); }
 /* How to play, in three lines, on the start screen */
 .ss-howto { max-width: 420px; margin: 0 auto 18px; padding-left: 20px; font-size: 14px; line-height: 1.6; color: var(--text2); text-align: left; }
+/* Endless and live, under the daily button */
+.ss-modes { display: flex; gap: 10px; width: 100%; margin-top: 12px; }
+.btn-mode { flex: 1; padding: 14px; font-family: var(--font-display); font-size: 13px; letter-spacing: 2px; }
+.ss-modes-note { margin: 10px auto 0; max-width: 460px; font-size: 13px; color: var(--text2); text-align: center; line-height: 1.5; }
 /* After today's scored round: the result and the wait for tomorrow's board */
 .ss-today { font-family: var(--font-display); font-size: 13px; letter-spacing: 2px; color: var(--cyan); margin: 0 0 14px; min-height: 1em; text-align: center; }
 .sd-label.practice { color: var(--pink); }
