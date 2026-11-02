@@ -228,7 +228,8 @@ class WordForgeGame {
       if (!this.isDragging || this.phase !== 'playing') return;
       e.preventDefault();
       const pos = getPos(e);
-      const hit = this.renderer.hitTest(pos.x, pos.y);
+      // Mid-drag, a letter counts only within 40% of a cell's width of its middle
+      const hit = this.renderer.hitTest(pos.x, pos.y, 0.8);
       this.renderer.hoveredCell = hit;
 
       if (hit >= 0 && hit !== this.currentPath[this.currentPath.length - 1]) {
@@ -270,11 +271,13 @@ class WordForgeGame {
 
     overlay.addEventListener('mousedown', onStart);
     overlay.addEventListener('mousemove', onMove);
-    overlay.addEventListener('mouseup', onEnd);
     overlay.addEventListener('mouseleave', () => { this.renderer.hoveredCell = -1; });
     overlay.addEventListener('touchstart', onStart, { passive: false });
     overlay.addEventListener('touchmove', onMove, { passive: false });
-    overlay.addEventListener('touchend', onEnd, { passive: false });
+    // Letting go anywhere ends the drag, not only over the grid
+    window.addEventListener('mouseup', onEnd);
+    window.addEventListener('touchend', onEnd, { passive: false });
+    window.addEventListener('touchcancel', onEnd, { passive: false });
 
     // Keyboard input
     document.addEventListener('keydown', (e) => {

@@ -70,10 +70,17 @@ class WordForgeRenderer {
     };
   }
 
-  hitTest(px, py) {
+  // reach < 1: the point must be within that share of the cell's half-width of its middle.
+  // While dragging, that keeps a diagonal from clipping the corners of the cells beside it.
+  hitTest(px, py, reach = 1) {
     for (let i = 0; i < 25; i++) {
       const { x, y, w, h } = this.cellRect(i);
-      if (px >= x && px <= x + w && py >= y && py <= y + h) return i;
+      if (reach < 1) {
+        const dx = px - (x + w / 2), dy = py - (y + h / 2), r = (Math.min(w, h) / 2) * reach;
+        if (dx * dx + dy * dy <= r * r) return i;
+      } else if (px >= x && px <= x + w && py >= y && py <= y + h) {
+        return i;
+      }
     }
     return -1;
   }
